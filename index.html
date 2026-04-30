@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Мечта — схема метро</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            background: #0a0c12;
+            font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+            color: #eef2ff;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Верхняя панель с процентом */
+        .top-bar {
+            background: #0a0c12;
+            padding: 16px 20px 8px;
+            border-bottom: 1px solid #1a1f2c;
+            z-index: 10;
+            flex-shrink: 0;
+        }
+        .percent {
+            font-size: 48px;
+            font-weight: 800;
+            letter-spacing: -2px;
+            text-align: center;
+            line-height: 1;
+        }
+        .message {
+            text-align: center;
+            font-size: 16px;
+            font-weight: 500;
+            color: #9aabca;
+            margin-top: 6px;
+        }
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-top: 12px;
+            font-size: 12px;
+        }
+        .legend span {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 12px;
+            margin-right: 6px;
+        }
+
+        /* Схема метро — скролл во все стороны */
+        .metro-container {
+            flex: 1;
+            overflow: auto;
+            position: relative;
+            background: #0a0c12;
+        }
+        svg {
+            min-width: 1200px;
+            min-height: 700px;
+            display: block;
+            background: #0a0c12;
+            cursor: grab;
+        }
+        svg:active {
+            cursor: grabbing;
+        }
+
+        /* Станция */
+        .station-circle {
+            cursor: pointer;
+            transition: 0.1s;
+        }
+        .station-circle circle {
+            fill: #1a1f2c;
+            stroke: #2a3048;
+            stroke-width: 2.5;
+            transition: 0.1s;
+        }
+        .station-circle.completed circle {
+            fill: #ffffff;
+            stroke: #ffffff;
+        }
+        .station-circle text {
+            fill: #b0bedf;
+            font-size: 11px;
+            font-weight: 500;
+            dominant-baseline: middle;
+            text-anchor: middle;
+            pointer-events: none;
+        }
+        .station-circle.completed text {
+            fill: #0a0c12;
+            font-weight: 700;
+        }
+
+        .station-label {
+            font-size: 12px;
+            fill: #c0cef0;
+            font-weight: 500;
+            pointer-events: none;
+        }
+
+        .line-path {
+            stroke-width: 4;
+            stroke-linecap: round;
+            fill: none;
+        }
+
+        /* Боковая панель видео (вылетает снизу на мобилке, справа на десктопе) */
+        .video-sidebar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #0e111b;
+            border-top: 2px solid #2a2f44;
+            border-radius: 24px 24px 0 0;
+            padding: 16px;
+            z-index: 100;
+            transition: transform 0.2s;
+            transform: translateY(100%);
+            max-height: 50vh;
+            overflow-y: auto;
+        }
+        .video-sidebar.open {
+            transform: translateY(0);
+        }
+        .video-title {
+            font-weight: 700;
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+        .video-container {
+            aspect-ratio: 16/9;
+            background: black;
+            border-radius: 16px;
+            overflow: hidden;
+            margin: 12px 0;
+        }
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+        .close-btn {
+            background: #2a2f44;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 40px;
+            font-weight: 600;
+            margin-top: 8px;
+            width: 100%;
+        }
+        .mark-btn {
+            background: white;
+            border: none;
+            color: black;
+            padding: 12px;
+            border-radius: 40px;
+            font-weight: 700;
+            margin-top: 8px;
+            width: 100%;
+            font-size: 16px;
+        }
+        .mark-btn:disabled {
+            background: #333a55;
+            color: #8890aa;
+        }
+        .lesson-list {
+            margin-top: 12px;
+        }
+        .lesson-item {
+            background: #131724;
+            margin: 8px 0;
+            padding: 12px;
+            border-radius: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+        .lesson-name {
+            font-weight: 500;
+        }
+        .lesson-status {
+            font-size: 20px;
+        }
+
+        @media (min-width: 768px) {
+            .video-sidebar {
+                top: 0;
+                bottom: auto;
+                right: 0;
+                left: auto;
+                width: 380px;
+                border-radius: 0;
+                border-left: 2px solid #2a2f44;
+                transform: translateX(100%);
+            }
+            .video-sidebar.open {
+                transform: translateX(0);
+            }
+        }
+
+        .close-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 90;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="top-bar">
+    <div class="percent" id="percentDisplay">0%</div>
+    <div class="message" id="messageDisplay">Так и хрен ли ты сидишь?</div>
+    <div class="legend">
+        <span style="background: #ffffff;"></span> пройдено
+        <span style="background: #1a1f2c; border:1px solid #3a4058;"></span> не пройдено
+    </div>
+</div>
+
+<div class="metro-container" id="metroContainer">
+    <svg id="metroSvg" viewBox="0 0 1400 750"></svg>
+</div>
+
+<div class="close-overlay" id="closeOverlay"></div>
+<div class="video-sidebar" id="videoSidebar">
+    <div class="video-title" id="sidebarTitle">Название станции</div>
+    <div class="lesson-list" id="lessonList"></div>
+    <div class="video-container" id="videoContainer" style="display: none;"></div>
+    <button class="mark-btn" id="markWatchedBtn" style="display: none;" disabled>⏳ Досмотри видео</button>
+    <button class="close-btn" id="closeSidebarBtn">Закрыть</button>
+</div>
+
+<script>
+    // ========= ДАННЫЕ ==========
+    const subjectsMetro = {
+        math: {
+            name: "Математика",
+            color: "#4f8eff",
+            stations: [
+                { id: "math_9", name: "9 класс", x: 100, y: 150, completed: false, lessons: [{ title: "Повтор 9 класса", url: "https://vkvideo.ru/video-40691695_456241392", completed: false }] },
+                { id: "math_10", name: "10 класс", x: 280, y: 150, completed: false, lessons: [{ title: "Алгебра 10", url: "https://vkvideo.ru/video-40691695_456241391", completed: false }] },
+                { id: "math_11", name: "11 класс", x: 460, y: 150, completed: false, lessons: [{ title: "Алгебра 11", url: "https://vkvideo.ru/video-40691695_456241390", completed: false }] },
+                { id: "math_ege", name: "ЕГЭ блок", x: 680, y: 150, completed: false, lessons: [
+                    { title: "1 часть", url: "https://vkvideo.ru/video-223261612_456239237", completed: false },
+                    { title: "13 задание", url: "https://vkvideo.ru/video-72614488_456239619", completed: false },
+                    { title: "14 задание", url: "https://vkvideo.ru/video-168456727_456317374", completed: false },
+                    { title: "15 задание", url: "https://vkvideo.ru/video-223261612_456239499", completed: false },
+                    { title: "16 задание", url: "https://vkvideo.ru/video-168456727_456316308", completed: false },
+                    { title: "17 задание", url: "https://vkvideo.ru/video-223261612_456239704", completed: false },
+                    { title: "18 задание", url: "https://vkvideo.ru/video-223261612_456239206", completed: false },
+                    { title: "19 задание", url: "https://vkvideo.ru/video-212252255_456239697", completed: false }
+                ] },
+                { id: "math_bonus", name: "Бонус", x: 900, y: 150, completed: false, lessons: [
+                    { title: "Теория для олмата", url: "https://vkvideo.ru/video-124108502_456239353", completed: false },
+                    { title: "Олимпиадные задачи", url: "https://vkvideo.ru/video-37711765_456241985", completed: false },
+                    { title: "Матанализ", url: "https://vkvideo.ru/video-167803770_456248816", completed: false }
+                ] }
+            ]
+        },
+        rus: {
+            name: "Русский язык",
+            color: "#6fbf4c",
+            stations: [
+                { id: "rus_9", name: "9 класс", x: 190, y: 320, completed: false, lessons: [{ title: "Повтор 9", url: "https://vkvideo.ru/video-168455375_456272048", completed: false }] },
+                { id: "rus_10", name: "10 класс", x: 370, y: 320, completed: false, lessons: [{ title: "Русский 10", url: "https://vkvideo.ru/video-226985624_456239628", completed: false }] },
+                { id: "rus_11", name: "11 класс", x: 550, y: 320, completed: false, lessons: [{ title: "Русский 11", url: "https://vkvideo.ru/video-201033510_456239545", completed: false }] },
+                { id: "rus_essay", name: "Сочинение", x: 750, y: 320, completed: false, lessons: [{ title: "Сочинение ЕГЭ", url: "https://vkvideo.ru/video-201033510_456239513", completed: false }] }
+            ]
+        },
+        physics: {
+            name: "Физика",
+            color: "#e8a735",
+            stations: [
+                { id: "phys_79", name: "7-9 повтор", x: 150, y: 520, completed: false, lessons: [{ title: "Повтор основ", url: "https://vkvideo.ru/video-168455361_456257157", completed: false }] },
+                { id: "phys_10", name: "10 класс", x: 330, y: 520, completed: false, lessons: [{ title: "Физика 10", url: "https://vkvideo.ru/video-169998703_456240216", completed: false }] },
+                { id: "phys_11", name: "11 класс", x: 510, y: 520, completed: false, lessons: [{ title: "Физика 11 (7-11)", url: "https://vkvideo.ru/video-169998703_456240927", completed: false }] },
+                { id: "phys_ege", name: "ЕГЭ 1-26", x: 730, y: 520, completed: false, lessons: [
+                    { title: "Задание 1", url: "https://vkvideo.ru/video-228121207_456239147", completed: false },
+                    { title: "Задание 2", url: "https://vkvideo.ru/video-168455361_456257242", completed: false },
+                    { title: "Задание 3", url: "https://vkvideo.ru/video-179104458_456535991", completed: false },
+                    { title: "Задание 4", url: "https://vkvideo.ru/video-168455361_456257394", completed: false },
+                    { title: "Задание 5", url: "https://vkvideo.ru/video-168455361_456256384", completed: false },
+                    { title: "Задание 6", url: "https://vkvideo.ru/video-168455361_456256390", completed: false },
+                    { title: "Задание 7", url: "https://vkvideo.ru/video-229181648_456239197", completed: false },
+                    { title: "Задание 8", url: "https://vkvideo.ru/video-230305605_456239027", completed: false },
+                    { title: "Задание 9", url: "https://vkvideo.ru/video-168455361_456256489", completed: false },
+                    { title: "Задание 10", url: "https://vkvideo.ru/video-168455361_456256496", completed: false },
+                    { title: "Задание 11", url: "https://vkvideo.ru/video-230305605_456239028", completed: false },
+                    { title: "Задание 12", url: "https://vkvideo.ru/video-168455361_456256576", completed: false },
+                    { title: "Задание 13", url: "https://vkvideo.ru/video-168455361_456256592", completed: false },
+                    { title: "Задание 14", url: "https://vkvideo.ru/video-222613436_456239218", completed: false },
+                    { title: "Задание 15", url: "https://vkvideo.ru/video-168455361_456256683", completed: false },
+                    { title: "Задание 16", url: "https://vkvideo.ru/video-168455361_456256688", completed: false },
+                    { title: "Задание 17", url: "https://vkvideo.ru/video-230305605_456239030", completed: false },
+                    { title: "Задание 18", url: "https://vkvideo.ru/video-168455361_456256755", completed: false },
+                    { title: "19-20", url: "https://vkvideo.ru/video-219843642_456239559", completed: false },
+                    { title: "21", url: "https://vkvideo.ru/video-134811712_456239622", completed: false },
+                    { title: "22", url: "https://vkvideo.ru/video-168455361_456257759", completed: false },
+                    { title: "23", url: "https://vkvideo.ru/video-221373411_456239884", completed: false },
+                    { title: "24", url: "https://vkvideo.ru/video-117103965_456239035", completed: false },
+                    { title: "25", url: "https://vkvideo.ru/video-169998703_456240943", completed: false },
+                    { title: "26", url: "https://vkvideo.ru/video-228330735_456239059", completed: false }
+                ] },
+                { id: "phys_bonus", name: "Бонус", x: 1000, y: 520, completed: false, lessons: [
+                    { title: "Оформление задач", url: "https://vkvideo.ru/video-125374676_456270913", completed: false },
+                    { title: "Открытый урок", url: "https://vkvideo.ru/video-201033616_456239257", completed: false }
+                ] }
+            ]
+        }
+    };
+
+    let currentStation = null;
+    let currentLesson = null;
+    let videoTimer = null;
+    let isVideoCompletedFlag = false;
+
+    // Загрузка/сохранение
+    function loadProgress() {
+        const saved = localStorage.getItem("MECHTA_METRO");
+        if(saved) {
+            const data = JSON.parse(saved);
+            for(let subj in subjectsMetro) {
+                for(let s of subjectsMetro[subj].stations) {
+                    const savedStation = data[subj]?.find(s2 => s2.id === s.id);
+                    if(savedStation) {
+                        s.completed = savedStation.completed;
+                        for(let i=0; i<s.lessons.length; i++) {
+                            if(savedStation.lessons[i]) s.lessons[i].completed = savedStation.lessons[i].completed;
+                        }
+                    }
+                }
+            }
+        }
+        updateCompletions();
+    }
+
+    function saveProgress() {
+        const data = {};
+        for(let subj in subjectsMetro) {
+            data[subj] = subjectsMetro[subj].stations.map(s => ({
+                id: s.id,
+                completed: s.completed,
+                lessons: s.lessons.map(l => ({ completed: l.completed }))
+            }));
+        }
+        localStorage.setItem("MECHTA_METRO", JSON.stringify(data));
+    }
+
+    function updateCompletions() {
+        for(let subj in subjectsMetro) {
+            for(let s of subjectsMetro[subj].stations) {
+                const allCompleted = s.lessons.every(l => l.completed === true);
+                s.completed = allCompleted;
+            }
+        }
+        updatePercent();
+    }
+
+    function updatePercent() {
+        let total = 0, completed = 0;
+        for(let subj in subjectsMetro) {
+            for(let s of subjectsMetro[subj].stations) {
+                total += s.lessons.length;
+                completed += s.lessons.filter(l=>l.completed).length;
+            }
+        }
+        let percent = total === 0 ? 0 : Math.floor((completed/total)*100);
+        document.getElementById("percentDisplay").innerText = percent + "%";
+        let msg = "";
+        if(percent < 50) msg = "Так и хрен ли ты сидишь?";
+        else if(percent < 80) msg = "Есть куда стремиться";
+        else if(percent < 100) msg = "Было бы глупо сейчас бросить";
+        else msg = "МЕЧТА ДОСТИГНУТА → МГУ";
+        document.getElementById("messageDisplay").innerText = msg;
+    }
+
+    // Отрисовка схемы
+    function drawMetro() {
+        const svg = document.getElementById("metroSvg");
+        svg.innerHTML = "";
+        // линии
+        for(let subj in subjectsMetro) {
+            const stations = subjectsMetro[subj].stations;
+            if(stations.length < 2) continue;
+            let points = stations.map(s => `${s.x},${s.y}`).join(" ");
+            let polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+            polyline.setAttribute("points", points);
+            polyline.setAttribute("stroke", subjectsMetro[subj].color);
+            polyline.setAttribute("stroke-width", "4");
+            polyline.setAttribute("fill", "none");
+            polyline.setAttribute("stroke-linecap", "round");
+            svg.appendChild(polyline);
+        }
+        // станции и надписи
+        for(let subj in subjectsMetro) {
+            for(let s of subjectsMetro[subj].stations) {
+                let group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                group.setAttribute("class", `station-circle ${s.completed ? "completed" : ""}`);
+                group.setAttribute("data-station", JSON.stringify({subject: subj, stationId: s.id}));
+                let circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                circle.setAttribute("cx", s.x);
+                circle.setAttribute("cy", s.y);
+                circle.setAttribute("r", "16");
+                group.appendChild(circle);
+                let text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", s.x);
+                text.setAttribute("y", s.y);
+                text.setAttribute("font-size", "10");
+                text.setAttribute("fill", s.completed ? "#0a0c12" : "#b0bedf");
+                text.setAttribute("text-anchor", "middle");
+                text.setAttribute("dominant-baseline", "middle");
+                text.textContent = s.name.split(" ")[0];
+                group.appendChild(text);
+                // название станции чуть ниже/сбоку
+                let label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                label.setAttribute("x", s.x);
+                label.setAttribute("y", s.y + 24);
+                label.setAttribute("font-size", "11");
+                label.setAttribute("fill", "#b0bedf");
+                label.setAttribute("text-anchor", "middle");
+                label.textContent = s.name;
+                svg.appendChild(label);
+                svg.appendChild(group);
+                group.onclick = (e) => {
+                    e.stopPropagation();
+                    openStation(subj, s.id);
+                };
+            }
+        }
+    }
+
+    function openStation(subject, stationId) {
+        const station = subjectsMetro[subject].stations.find(s => s.id === stationId);
+        if(!station) return;
+        currentStation = station;
+        const sidebar = document.getElementById("videoSidebar");
+        document.getElementById("closeOverlay").style.display = "block";
+        sidebar.classList.add("open");
+        document.getElementById("sidebarTitle").innerText = `${subjectsMetro[subject].name} — ${station.name}`;
+        const lessonListDiv = document.getElementById("lessonList");
+        lessonListDiv.innerHTML = "";
+        station.lessons.forEach((lesson, idx) => {
+            const item = document.createElement("div");
+            item.className = "lesson-item";
+            item.innerHTML = `
+                <div class="lesson-name">${lesson.title}</div>
+                <div class="lesson-status">${lesson.completed ? "✓" : "○"}</div>
+            `;
+            item.onclick = () => {
+                openLesson(lesson, idx);
+            };
+            lessonListDiv.appendChild(item);
+        });
+        document.getElementById("videoContainer").style.display = "none";
+        document.getElementById("markWatchedBtn").style.display = "none";
+    }
+
+    function openLesson(lesson, lessonIdx) {
+        if(currentLesson === lesson) return;
+        if(videoTimer) clearTimeout(videoTimer);
+        currentLesson = lesson;
+        const videoContainer = document.getElementById("videoContainer");
+        videoContainer.style.display = "block";
+        videoContainer.innerHTML = `<iframe src="${lesson.url}?autoplay=0&controls=1" frameborder="0" allowfullscreen></iframe>`;
+        const markBtn = document.getElementById("markWatchedBtn");
+        markBtn.style.display = "block";
+        markBtn.disabled = true;
+        markBtn.innerText = "⏳ Досмотри видео до конца";
+        isVideoCompletedFlag = false;
+        // симуляция просмотра: в реальном проекте замени на отслеживание через API видео
+        videoTimer = setTimeout(() => {
+            if(currentLesson === lesson) {
+                isVideoCompletedFlag = true;
+                markBtn.disabled = false;
+                markBtn.innerText = "✅ Засчитать урок";
+            }
+        }, 8000);
+        markBtn.onclick = () => {
+            if(!isVideoCompletedFlag) {
+                alert("Досмотри видео до конца! Не читери.");
+                return;
+            }
+            if(lesson.completed) {
+                alert("Уже пройдено");
+                return;
+            }
+            lesson.completed = true;
+            updateCompletions();
+            saveProgress();
+            drawMetro();
+            // обновить список уроков в сайдбаре
+            if(currentStation) openStation(Object.keys(subjectsMetro).find(k => subjectsMetro[k].stations.includes(currentStation)), currentStation.id);
+            alert("Урок засчитан!");
+        };
+    }
+
+    document.getElementById("closeSidebarBtn").onclick = () => {
+        document.getElementById("videoSidebar").classList.remove("open");
+        document.getElementById("closeOverlay").style.display = "none";
+        if(videoTimer) clearTimeout(videoTimer);
+        currentLesson = null;
+    };
+    document.getElementById("closeOverlay").onclick = () => {
+        document.getElementById("videoSidebar").classList.remove("open");
+        document.getElementById("closeOverlay").style.display = "none";
+    };
+
+    // Панархия
+    loadProgress();
+    drawMetro();
+
+    // drag для схемы
+    const container = document.getElementById("metroContainer");
+    let isDown = false;
+    let startX, startY, scrollLeft, scrollTop;
+    container.addEventListener("mousedown", (e) => {
+        if(e.target.closest(".station-circle")) return;
+        isDown = true;
+        startX = e.pageX - container.offsetLeft;
+        startY = e.pageY - container.offsetTop;
+        scrollLeft = container.scrollLeft;
+        scrollTop = container.scrollTop;
+        container.style.cursor = "grabbing";
+    });
+    window.addEventListener("mouseup", () => {
+        isDown = false;
+        container.style.cursor = "grab";
+    });
+    container.addEventListener("mousemove", (e) => {
+        if(!isDown) return;
+        e.preventDefault();
+        const x = e.pageX - container.offsetLeft;
+        const y = e.pageY - container.offsetTop;
+        const walkX = (x - startX);
+        const walkY = (y - startY);
+        container.scrollLeft = scrollLeft - walkX;
+        container.scrollTop = scrollTop - walkY;
+    });
+</script>
+</body>
+</html>
